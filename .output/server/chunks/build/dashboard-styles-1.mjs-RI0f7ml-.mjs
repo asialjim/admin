@@ -1,0 +1,4 @@
+const dashboard_vue_vue_type_style_index_0_scoped_1a235ec3_lang = ".dashboard-container[data-v-1a235ec3]{background-color:#f0f2f5;height:100vh;overflow:auto;padding:20px;width:100%}.dashboard-header[data-v-1a235ec3]{align-items:center;border-bottom:1px solid #ebeef5;display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:10px}.dashboard-header h1[data-v-1a235ec3]{color:#303133;font-size:24px;margin:0}.dashboard-content[data-v-1a235ec3]{margin:0 auto;max-width:800px}.dashboard-card[data-v-1a235ec3]{margin-bottom:20px}.card-header[data-v-1a235ec3]{align-items:center;display:flex;justify-content:space-between}.dashboard-welcome[data-v-1a235ec3]{padding:40px 0;text-align:center}.dashboard-welcome p[data-v-1a235ec3]{color:#606266;margin-top:20px}";
+
+export { dashboard_vue_vue_type_style_index_0_scoped_1a235ec3_lang as d };
+//# sourceMappingURL=dashboard-styles-1.mjs-RI0f7ml-.mjs.map
