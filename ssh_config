@@ -1,0 +1,4 @@
+Host asialjim
+  HostName www.asialjim.cn
+  User root
+  Port 41022

@@ -4,8 +4,10 @@ import envConfig from './env'
 
 // 环境配置中的基础URL
 const { baseUrl } = envConfig
+const X_USER_TOKEN = 'x-user-token'
 
-// 合并基础URL和接口URI
+const userToken = () => getCookie(X_USER_TOKEN) || ''
+
 const combineUrl = (uri: string): string => {
   // 如果URI已经是完整的URL，直接返回
   if (uri.startsWith('http://') || uri.startsWith('https://')) {
@@ -47,15 +49,21 @@ export const clearCookie = (name: string): void => {
 }
 
 // 请求拦截器
-const requestInterceptor = (config: RequestInit): RequestInit => {
-  // 添加默认headers
+const requestInterceptor = (config: RequestInit, customHeaders?: Record<string, string>): RequestInit => {
+  // 基础headers
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(config.headers as Record<string, string> || {}),
+    ...(customHeaders || {}),
+  }
+  
+  // 只有当使用POST/PUT方法且未指定Content-Type时才设置默认值
+  const method = (config.method || 'GET').toUpperCase();
+  if (['POST', 'PUT'].includes(method) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
   }
   
   // 添加认证token
-  const token = getCookie('token')
+  const token = userToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`
   }
@@ -105,7 +113,7 @@ const handleRequestError = (error: any): never => {
   if (error.message.includes('401') || error.message.includes('未授权')) {
     ElMessage.error('登录已过期，请重新登录')
     // 清除token
-    clearCookie('token')
+    clearCookie(X_USER_TOKEN)
     // 跳转到登录页
     router.push('/login')
     throw new Error('认证失败')
@@ -122,70 +130,107 @@ const handleRequestError = (error: any): never => {
 }
 
 // 通用请求方法
-export const request = async (uri: string, options: RequestInit = {}): Promise<any> => {
+export const request = async (uri: string, options: {
+  queries?: Record<string, any>;
+  headers?: Record<string, string>;
+  data?: any;
+  [key: string]: any;
+} = {}): Promise<any> => {
   try {
+    // 构建查询参数
+    let queryString = '';
+    if (options.queries) {
+      const searchParams = new URLSearchParams();
+      Object.keys(options.queries).forEach(key => {
+        if (options.queries![key] !== undefined && options.queries![key] !== null) {
+          searchParams.append(key, options.queries![key]);
+        }
+      });
+      const paramsString = searchParams.toString();
+      if (paramsString) {
+        // 检查uri是否已经包含查询参数
+        const separator = uri.includes('?') ? '&' : '?';
+        queryString = `${separator}${paramsString}`;
+      }
+    }
+    
     // 构建完整URL
-    const url = combineUrl(uri)
+    const url = combineUrl(uri) + queryString;
+    
+    // 构建请求配置
+    const requestConfig: RequestInit = {
+      credentials: 'include',
+      ...options,
+    };
+    
+    // 如果有data参数且是POST/PUT请求，设置请求体
+    if (options.data && ['POST', 'PUT'].includes(requestConfig.method as string)) {
+      // 智能处理不同类型的数据
+      if (options.data instanceof FormData || 
+          options.data instanceof URLSearchParams || 
+          typeof options.data === 'string') {
+        // 对于FormData、URLSearchParams或已序列化的字符串，直接使用
+        requestConfig.body = options.data as BodyInit;
+      } else {
+        // 其他情况进行JSON序列化
+        requestConfig.body = JSON.stringify(options.data);
+      }
+    }
+    
+    // 移除options中不属于RequestInit的属性
+    delete (requestConfig as any).queries;
+    delete (requestConfig as any).headers;
+    delete (requestConfig as any).data;
     
     // 应用请求拦截器
-    const config = requestInterceptor({
-      ...options,
-      credentials: 'include',
-    })
+    const config = requestInterceptor(requestConfig, options.headers);
     
     // 发送请求
-    const response = await fetch(url, config)
+    const response = await fetch(url, config);
     
     // 应用响应拦截器
-    return await responseInterceptor(response)
+    return await responseInterceptor(response);
   } catch (error) {
     // 处理请求错误
-    return handleRequestError(error)
+    return handleRequestError(error);
   }
 }
 
 // 封装GET请求
-export const get = async (uri: string, params?: any): Promise<any> => {
-  // 构建查询参数
-  let queryString = ''
-  if (params) {
-    const searchParams = new URLSearchParams()
-    Object.keys(params).forEach(key => {
-      if (params[key] !== undefined && params[key] !== null) {
-        searchParams.append(key, params[key])
-      }
-    })
-    const paramsString = searchParams.toString()
-    if (paramsString) {
-      queryString = `?${paramsString}`
-    }
-  }
-  
-  return request(`${uri}${queryString}`, {
+export const get = async (uri: string, queries?: Record<string, any>, headers?: Record<string, string>): Promise<any> => {
+  return request(uri, {
     method: 'GET',
+    queries,
+    headers,
   })
 }
 
 // 封装POST请求
-export const post = async (uri: string, data?: any): Promise<any> => {
+export const post = async (uri: string, data?: any, queries?: Record<string, any>, headers?: Record<string, string>): Promise<any> => {
   return request(uri, {
     method: 'POST',
-    body: JSON.stringify(data),
+    data,
+    queries,
+    headers,
   })
 }
 
 // 封装PUT请求
-export const put = async (uri: string, data?: any): Promise<any> => {
+export const put = async (uri: string, data?: any, queries?: Record<string, any>, headers?: Record<string, string>): Promise<any> => {
   return request(uri, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    data,
+    queries,
+    headers,
   })
 }
 
 // 封装DELETE请求
-export const del = async (uri: string): Promise<any> => {
+export const del = async (uri: string, queries?: Record<string, any>, headers?: Record<string, string>): Promise<any> => {
   return request(uri, {
     method: 'DELETE',
+    queries,
+    headers,
   })
 }
 
@@ -206,7 +251,7 @@ export const login = async (uri: string, credentials: any, customHeaders?: Recor
   
   // 存储token - 根据响应示例，token在response.data字段中
   if (response.data) {
-    setCookie('token', response.data, 365)
+    setCookie(X_USER_TOKEN, response.data, 365)
   }
   
   return response
@@ -220,10 +265,13 @@ export const register = async (uri: string, userData: any): Promise<any> => {
 // 登出方法
 export const logout = async (): Promise<void> => {
   try {
-    await post('/api/auth/logout')
+    const token = userToken();
+    await del('/api/open/user/auth/logout', { token })
   } finally {
-    // 无论成功失败都清除token
-    clearCookie('token')
+    // 无论成功失败都清除token和x-user-token
+    clearCookie(X_USER_TOKEN)
+    // 跳转到门户页面
+    window.location.href = '/'  // 假设门户页面是根路径，可根据实际情况修改
   }
 }
 
@@ -238,6 +286,39 @@ export const checkSystemInitialized = async (): Promise<boolean> => {
   }
 }
 
+export const userHadLoggedIn = (): boolean => {
+  return userToken() !== undefined
+}
+
+// 获取应用列表
+export const getAppList = async (page: number = 1, size: number = 10): Promise<any> => {
+  return get('/api/rest/admin/app/app/list', { page, size })
+}
+
+// 创建应用
+export const createApp = async (appData: {
+  name: string;
+  orgId: string;
+  status: string;
+}): Promise<any> => {
+  return post('/api/rest/admin/app/app', appData)
+}
+
+// 更新应用
+export const updateApp = async (appData: {
+  id: string;
+  name: string;
+  orgId: string;
+  status: string;
+}): Promise<any> => {
+  return put('/api/rest/admin/app/app', appData)
+}
+
+// 获取渠道应用列表
+export const getChannelAppList = async (appId: string): Promise<any> => {
+  return get(`/api/rest/admin/app/chl-app/list/${appId}`)
+}
+
 // 统一导出API对象
 export const api = {
   request,
@@ -249,7 +330,10 @@ export const api = {
   register,
   logout,
   checkSystemInitialized,
-  getCookie,
-  setCookie,
-  clearCookie,
+  userToken,
+  userHadLoggedIn,
+  getAppList,
+  createApp,
+  updateApp,
+  getChannelAppList
 }
