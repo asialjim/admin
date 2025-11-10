@@ -16,19 +16,19 @@ export interface EnvConfig {
 const configs: Record<string, EnvConfig> = {
   // 开发环境
   development: {
-    baseUrl: 'https://dev.api.asialjim.cn',
+    baseUrl: 'https://dev.gateway.api.asialjim.cn',
     apiPrefix: '/api',
     debug: true,
   },
   // 测试环境
   test: {
-    baseUrl: 'http://test-api.example.com',
+    baseUrl: 'https://test.gateway.api.asialjim.cn',
     apiPrefix: '/api',
     debug: true,
   },
   // 生产环境
   production: {
-    baseUrl: 'http://api.example.com',
+    baseUrl: 'https://prod.gateway.api.asialjim.cn',
     apiPrefix: '/api',
     debug: false,
   },
